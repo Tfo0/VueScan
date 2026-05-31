@@ -1,0 +1,18 @@
+services:
+  vuescan:
+    build: .
+    # 发布后替换为：
+    # image: ghcr.io/your-username/vuescan:latest
+    ports:
+      - "8000:8000"
+    environment:
+      - VUESCAN_HOST=0.0.0.0
+      - VUESCAN_PORT=8000
+    volumes:
+      - vuescan_outputs:/app/outputs
+      - vuescan_projects:/app/projects
+    restart: unless-stopped
+
+volumes:
+  vuescan_outputs:
+  vuescan_projects:

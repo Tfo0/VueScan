@@ -1,0 +1,751 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="/vue.svg">
+  <title>{{ page_title }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
+</head>
+<body>
+  <div class="layout">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-badge">VS</div>
+        <div class="brand-text">
+          <h1>VueScan</h1>
+        </div>
+      </div>
+      <nav class="flow-nav">
+        <a class="flow-item {% if active_module == 1 %}active{% endif %}" href="/?module=1">Vue检测</a>
+        <a class="flow-item {% if active_module == 2 %}active{% endif %}" href="/?module=2">项目路由</a>
+        <a class="flow-item {% if active_module == 3 %}active{% endif %}" href="/?module=3">API提取</a>
+        <a class="flow-item {% if active_module == 4 %}active{% endif %}" href="/?module=4">API请求</a>
+      </nav>
+    </header>
+
+    <main class="workspace">
+      {% if error %}
+      <section class="panel panel-error">
+        <h3>Error</h3>
+        <pre>{{ error }}</pre>
+      </section>
+      {% endif %}
+
+      <section class="module {% if active_module != 1 %}hidden{% endif %}">
+        {% if module1_detail_mode and module1_task_detail %}
+        {% set task_result = module1_task_detail.get('result') or {} %}
+        {% set task_urls = module1_task_detail.get('urls') or [] %}
+        {% set task_params = module1_task_detail.get('params') or {} %}
+
+        <div class="panel detail-nav">
+          <a href="/?module=1" class="btn-ghost">返回检测任务列表</a>
+          <div class="mono">当前任务: {{ module1_task_detail.title }}</div>
+          <div class="task-actions">
+            <button type="button" class="btn-ghost" data-open-dialog="taskDetailModal">查看任务详情</button>
+            <form method="post" action="/actions/module1/task/delete" class="inline-form" onsubmit="return confirm('确认删除该检测任务吗？此操作不可恢复。');">
+              <input type="hidden" name="task_id" value="{{ module1_task_detail.task_id }}">
+              <button type="submit" class="btn-danger">删除任务</button>
+            </form>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>检测结果</h3>
+          {% if task_result %}
+          <pre>{{ task_result | tojson(indent=2) }}</pre>
+          {% else %}
+          <div class="task-empty">暂无检测结果</div>
+          {% endif %}
+          {% if module1_task_detail.error %}
+          <h4>错误信息</h4>
+          <pre>{{ module1_task_detail.error }}</pre>
+          {% endif %}
+        </div>
+
+        <dialog id="taskDetailModal" class="modal-dialog modal-dialog-wide">
+          <div class="modal-shell">
+            <div class="modal-head">
+              <div class="modal-title-wrap">
+                <h3>任务详情: {{ module1_task_detail.title }}</h3>
+                <p>任务基础信息与本地路径已统一展示。</p>
+              </div>
+              <button type="button" class="modal-close" data-close-dialog="taskDetailModal" aria-label="关闭窗口">×</button>
+            </div>
+            <div class="modal-body form-grid detail-modal-content">
+              <div class="detail-stats">
+                <div><strong>status:</strong> {{ module1_task_detail.status }}</div>
+                <div><strong>url_count:</strong> {{ module1_task_detail.url_count }}</div>
+                <div><strong>task_id:</strong> <span class="mono">{{ module1_task_detail.task_id }}</span></div>
+                <div><strong>job_id:</strong> <span class="mono">{{ module1_task_detail.job_id }}</span></div>
+                <div><strong>created_at:</strong> {{ module1_task_detail.created_at }}</div>
+                <div><strong>updated_at:</strong> {{ module1_task_detail.updated_at }}</div>
+                <div><strong>concurrency:</strong> {{ task_params.get('concurrency', 5) }}</div>
+                <div><strong>timeout:</strong> {{ task_params.get('timeout', 20) }}</div>
+                <div><strong>wait_ms:</strong> {{ task_params.get('wait_ms', 1800) }}</div>
+              </div>
+              <div><strong>input_path:</strong> <span class="mono">{{ module1_task_detail.input_path }}</span></div>
+              <div><strong>txt_path:</strong> <span class="mono">{{ task_result.get('txt_path', '-') }}</span></div>
+              <div><strong>html_path:</strong> <span class="mono">{{ task_result.get('html_path', '-') }}</span></div>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn-ghost" data-close-dialog="taskDetailModal">关闭</button>
+            </div>
+          </div>
+        </dialog>
+
+        <div class="panel">
+          <h3>检测URL结果</h3>
+          {% if task_urls %}
+          <div class="table-wrap task-url-preview">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>URL</th>
+                  <th>动作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for url in task_urls %}
+                <tr>
+                  <td>{{ loop.index }}</td>
+                  <td class="mono">{{ url }}</td>
+                  <td>
+                    <form method="post" action="/actions/module1/project/create" class="inline-form">
+                      <input type="hidden" name="task_id" value="{{ module1_task_detail.task_id }}">
+                      <input type="hidden" name="url" value="{{ url }}">
+                      <button type="submit" class="btn-secondary">创建项目</button>
+                    </form>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="task-empty">当前任务暂无URL结果</div>
+          {% endif %}
+        </div>
+        {% else %}
+        <div class="panel">
+          <h3>创建检测任务</h3>
+          <button type="button" id="openDetectTaskModal" data-open-dialog="detectTaskModal">创建检测任务</button>
+        </div>
+
+        <dialog id="detectTaskModal" class="modal-dialog">
+          <form method="post" action="/actions/module1/detect" enctype="multipart/form-data" class="modal-shell">
+            <div class="modal-head">
+              <div class="modal-title-wrap">
+                <h3>创建检测任务</h3>
+                <p>提交后任务立即进入后台执行，列表自动刷新状态。</p>
+              </div>
+              <button type="button" class="modal-close" data-close-dialog="detectTaskModal" aria-label="关闭窗口">×</button>
+            </div>
+            <div class="modal-body form-grid">
+              <label>检测任务名称</label>
+              <input name="task_name" value="{{ detect_form.task_name }}" placeholder="例如: 第一批资产检测" required>
+
+              <label>并发数量</label>
+              <input type="number" name="concurrency" min="1" step="1" value="{{ detect_form.concurrency or '5' }}" required>
+
+              <label>上传文件 (xlsx/txt/html)</label>
+              <input type="file" name="upload_file" accept=".xlsx,.xlsm,.txt,.html,.htm" required>
+            </div>
+            <div class="modal-actions">
+              <button type="submit">创建任务</button>
+              <button type="button" class="btn-ghost" data-close-dialog="detectTaskModal">取消</button>
+            </div>
+          </form>
+        </dialog>
+
+        <div class="panel">
+          <h3>检测任务</h3>
+          {% if detect_tasks %}
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>任务名称</th>
+                  <th>状态</th>
+                  <th>URL数量</th>
+                  <th>更新时间</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for task in detect_tasks %}
+                <tr>
+                  <td><a href="/detect-tasks/{{ task.task_id }}" class="project-domain-link">{{ task.title }}</a></td>
+                  <td><span class="task-state">{{ task.status }}</span></td>
+                  <td>{{ task.url_count }}</td>
+                  <td>{{ task.updated_at }}</td>
+                  <td>
+                    <form method="post" action="/actions/module1/task/delete" class="inline-form" onsubmit="return confirm('确认删除该检测任务吗？此操作不可恢复。');">
+                      <input type="hidden" name="task_id" value="{{ task.task_id }}">
+                      <button type="submit" class="btn-danger">删除</button>
+                    </form>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="task-empty">暂无检测任务</div>
+          {% endif %}
+        </div>
+        {% endif %}
+      </section>
+
+      <section class="module {% if active_module != 2 %}hidden{% endif %}">
+        {% set module2_sync_job_view = module2_sync_job if module2_sync_job_for_selected else {} %}
+        {% set module2_js_job_view = module2_js_download_job if module2_js_download_job_for_selected else {} %}
+        {% if module2_sync_job_view or module2_js_job_view %}
+        <div class="panel module2-job-panel">
+          <h3>后台任务状态</h3>
+          <div class="job-list">
+            {% if module2_sync_job_view %}
+            {% set sync_payload = module2_sync_job_view.get('payload') or {} %}
+            {% set sync_result = module2_sync_job_view.get('result') or {} %}
+            {% set sync_status = (module2_sync_job_view.get('status') or '') | lower %}
+            <div class="job-card">
+              <div class="job-card-head">
+                <strong>项目同步任务</strong>
+                <span class="task-state">{{ sync_status or '-' }}</span>
+              </div>
+              <div class="job-card-meta mono">job_id: {{ module2_sync_job_view.get('job_id', '-') }}</div>
+              <div class="job-card-meta mono">target: {{ sync_payload.get('target_url', sync_result.get('target_url', '-')) }}</div>
+              <div class="job-card-meta">
+                routes: {{ 'on' if sync_result.get('detect_routes', sync_payload.get('detect_routes')) else 'off' }} ·
+                js: {{ 'on' if sync_result.get('detect_js', sync_payload.get('detect_js')) else 'off' }} ·
+                url_count: {{ sync_result.get('url_count', '-') }}
+              </div>
+              {% if module2_sync_job_view.get('error') %}
+              <pre class="job-error">{{ module2_sync_job_view.get('error') }}</pre>
+              {% endif %}
+            </div>
+            {% endif %}
+
+            {% if module2_js_job_view %}
+            {% set js_payload = module2_js_job_view.get('payload') or {} %}
+            {% set js_result = module2_js_job_view.get('result') or {} %}
+            {% set js_progress = js_result.get('progress') or {} %}
+            {% set js_status = (module2_js_job_view.get('status') or '') | lower %}
+            {% set js_done = js_progress.get('done', 0) | int %}
+            {% set js_total = js_progress.get('total', js_payload.get('total', 0)) | int %}
+            {% set js_downloaded = js_progress.get('downloaded', js_result.get('downloaded_count', 0)) | int %}
+            {% set js_failed = js_progress.get('failed', js_result.get('failed_count', 0)) | int %}
+            {% set js_percent = ((js_done * 100 / js_total) | round(0, 'floor')) if js_total else 0 %}
+            <div class="job-card">
+              <div class="job-card-head">
+                <strong>JS打包下载任务</strong>
+                <span class="task-state">{{ js_status or '-' }}</span>
+              </div>
+              <div class="job-card-meta mono">job_id: {{ module2_js_job_view.get('job_id', '-') }}</div>
+              <div class="job-card-meta">并发: {{ js_result.get('concurrency', js_payload.get('concurrency', '-')) }}</div>
+              <div class="job-progress-track">
+                <div class="job-progress-bar" style="width: {{ js_percent }}%;"></div>
+              </div>
+              <div class="job-card-meta">进度: {{ js_done }}/{{ js_total }} · 成功: {{ js_downloaded }} · 失败: {{ js_failed }}</div>
+              {% if js_status == 'completed' and js_result.get('zip_path') %}
+              <a href="/downloads/module2/jszip/{{ module2_js_job_view.get('job_id') }}" class="btn-link-inline">下载已打包ZIP</a>
+              {% endif %}
+              {% if module2_js_job_view.get('error') %}
+              <pre class="job-error">{{ module2_js_job_view.get('error') }}</pre>
+              {% endif %}
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+        {% if module2_detail_mode %}
+        <div class="panel detail-nav">
+          <a href="/?module=2" class="btn-ghost">返回项目列表</a>
+          <div class="mono">当前项目: {{ selected_project_domain }}</div>
+        </div>
+
+        <div class="panel">
+          <h3>项目详情: {{ selected_project_domain }}</h3>
+          <div class="detail-stats">
+            <div><strong>routes:</strong> {{ module2_detail.route_count }}</div>
+            <div><strong>captured_js:</strong> {{ module2_detail.chunk_count }}</div>
+            <div><strong>downloaded_js:</strong> {{ module2_detail.downloaded_chunk_count }}</div>
+          </div>
+          <button type="button" id="openProjectLocalModal" data-open-dialog="projectLocalInfoModal">查看项目详情</button>
+          <dialog id="projectLocalInfoModal" class="modal-dialog modal-dialog-wide">
+            <div class="modal-shell">
+              <div class="modal-head">
+                <div class="modal-title-wrap">
+                  <h3>项目本地信息</h3>
+                  <p>仅在需要时查看本地文件路径。</p>
+                </div>
+                <button type="button" class="modal-close" data-close-dialog="projectLocalInfoModal" aria-label="关闭窗口">×</button>
+              </div>
+              <div class="modal-body form-grid">
+                <div class="path-line"><strong>project_dir:</strong> <span class="mono path-value">{{ module2_detail.project_dir }}</span></div>
+                <div class="path-line"><strong>routes_file:</strong> <span class="mono path-value">{{ module2_detail.routes_file }}</span></div>
+                <div class="path-line"><strong>js_file:</strong> <span class="mono path-value">{{ module2_detail.js_file }}</span></div>
+                <div class="path-line"><strong>urls_file:</strong> <span class="mono path-value">{{ module2_detail.urls_file }}</span></div>
+              </div>
+              <div class="modal-actions">
+                <button type="button" class="btn-ghost" data-close-dialog="projectLocalInfoModal">关闭</button>
+              </div>
+            </div>
+          </dialog>
+          {% if module2_detail.manifest_summary %}
+          <h4>manifest summary</h4>
+          <pre>{{ module2_detail.manifest_summary | tojson(indent=2) }}</pre>
+          {% endif %}
+        </div>
+
+        <div class="panel">
+          <h3>路由与Chunk预览</h3>
+          {% if module2_detail.routes_preview %}
+          <h4>Routes</h4>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Name</th>
+                  <th>Path</th>
+                  <th>URL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for route in module2_detail.routes_preview %}
+                <tr>
+                  <td>{{ loop.index }}</td>
+                  <td>{{ route.get('name', '-') }}</td>
+                  <td class="mono">{{ route.get('path', '-') }}</td>
+                  <td class="mono">
+                    {% if route.get('route_url') %}
+                    <a href="{{ route.get('route_url') }}" target="_blank" rel="noopener noreferrer" class="route-link">{{ route.get('route_url') }}</a>
+                    {% else %}
+                    -
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="task-empty">暂无路由数据</div>
+          {% endif %}
+
+          {% if module2_detail.js_preview %}
+          <div class="js-download-actions">
+            <form method="post" action="/actions/module2/js/download" class="inline-form">
+              <input type="hidden" name="domain" value="{{ selected_project_domain }}">
+              <button type="submit" class="btn-secondary">创建JS下载任务</button>
+            </form>
+            {% set detail_js_status = ((module2_js_job_view.get('status') or '') | lower) if module2_js_job_view else '' %}
+            {% if detail_js_status == 'running' %}
+            <span class="job-inline-note">JS打包任务执行中，稍后可下载ZIP。</span>
+            {% elif detail_js_status == 'completed' and module2_js_job_view.get('job_id') %}
+            <a href="/downloads/module2/jszip/{{ module2_js_job_view.get('job_id') }}" class="btn-link-inline">下载最近ZIP</a>
+            {% endif %}
+          </div>
+          <h4>Chunk JS Preview</h4>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Chunk URL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for js in module2_detail.js_preview %}
+                <tr>
+                  <td>{{ loop.index }}</td>
+                  <td class="mono">{{ js }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% endif %}
+        </div>
+        {% else %}
+        <div class="panel">
+          <h3>创建项目</h3>
+          <button type="button" data-open-dialog="module2CreateProjectModal">创建项目</button>
+
+          <dialog id="module2CreateProjectModal" class="modal-dialog">
+            <form method="post" action="/actions/module2/project/create" class="modal-shell">
+              <div class="modal-head">
+                <div class="modal-title-wrap">
+                  <h3>创建项目</h3>
+                  <p>上方为项目同步配置，提交后按勾选项执行。</p>
+                </div>
+                <button type="button" class="modal-close" data-close-dialog="module2CreateProjectModal" aria-label="关闭窗口">×</button>
+              </div>
+              <div class="modal-body form-grid">
+                <label>项目域名(可选)</label>
+                <input name="domain" value="{{ selected_project_domain }}">
+
+                <label>Target URL(为空则尝试seed_url)</label>
+                <input name="target_url" value="{{ chunk_form.target_url }}" placeholder="https://target/#/login">
+
+                <label>并发数量</label>
+                <input type="number" name="concurrency" min="1" step="1" value="{{ chunk_form.concurrency or '5' }}">
+
+                <label class="check-line"><input type="checkbox" name="detect_routes" value="1" {% if chunk_form.detect_routes %}checked{% endif %}> 路由检测</label>
+                <label class="check-line"><input type="checkbox" name="detect_js" value="1" {% if chunk_form.detect_js %}checked{% endif %}> JS检测(仅捕获，不下载)</label>
+              </div>
+              <div class="modal-actions">
+                <button type="submit">创建项目</button>
+                <button type="button" class="btn-ghost" data-close-dialog="module2CreateProjectModal">取消</button>
+              </div>
+            </form>
+          </dialog>
+        </div>
+
+        <div class="panel">
+          <h3>项目列表(模块一联动 + 手动创建)</h3>
+          {% if project_cards %}
+          <div class="table-wrap project-table-wrap">
+            <table class="project-table">
+              <thead>
+                <tr>
+                  <th class="project-col-index">序号</th>
+                  <th>域名</th>
+                  <th>路由数量</th>
+                  <th>JS数量</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for project in project_cards %}
+                <tr class="{% if selected_project_domain == project.domain %}project-row-active{% endif %}">
+                  <td class="project-col-index">{{ project_serial_start + loop.index0 }}</td>
+                  <td class="mono"><a href="/projects/{{ project.domain }}" class="project-domain-link">{{ project.domain }}</a></td>
+                  <td>{{ project.route_count }}</td>
+                  <td>{{ project.js_count }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="project-pagination">
+            <div class="project-page-meta">共 {{ project_total }} 个项目 · 第 {{ project_page }} / {{ project_total_pages }} 页</div>
+            <div class="project-page-actions">
+              {% if project_has_prev %}
+              <a href="/?module=2&project_page={{ project_prev_page }}&project_size={{ project_page_size }}" class="pager-link">上一页</a>
+              {% else %}
+              <span class="pager-link disabled">上一页</span>
+              {% endif %}
+              {% if project_has_next %}
+              <a href="/?module=2&project_page={{ project_next_page }}&project_size={{ project_page_size }}" class="pager-link">下一页</a>
+              {% else %}
+              <span class="pager-link disabled">下一页</span>
+              {% endif %}
+              <form method="get" action="/" class="inline-form page-size-form">
+                <input type="hidden" name="module" value="2">
+                <input type="hidden" name="project_page" value="1">
+                <label class="pager-size-label">每页</label>
+                <select name="project_size" onchange="this.form.submit()">
+                  {% for size in project_page_size_options %}
+                  <option value="{{ size }}" {% if project_page_size == size %}selected{% endif %}>{{ size }}</option>
+                  {% endfor %}
+                </select>
+              </form>
+            </div>
+          </div>
+          {% else %}
+          <div class="task-empty">暂无项目</div>
+          {% endif %}
+        </div>
+
+        {% endif %}
+      </section>
+
+      <section class="module {% if active_module != 3 %}hidden{% endif %}">
+        <div class="panel">
+          <h3>第一行: 项目与项目内JS</h3>
+          <form method="post" action="/actions/module3/load" class="form-grid">
+            <label>Project Domain</label>
+            <select name="domain" onchange="this.form.submit()">
+              <option value="">-- Select --</option>
+              {% for p in projects %}
+              <option value="{{ p }}" {% if module3_form.domain == p %}selected{% endif %}>{{ p }}</option>
+              {% endfor %}
+            </select>
+
+            <label>项目内JS文件</label>
+            <select name="js_file" onchange="this.form.submit()">
+              <option value="">-- Select local JS --</option>
+              {% for js in module3_js_files %}
+              <option value="{{ js }}" {% if module3_form.js_file == js %}selected{% endif %}>{{ js }}</option>
+              {% endfor %}
+            </select>
+
+            <div class="quick-actions">
+              <button type="submit" formaction="/actions/module3/js/beautify">JS美化预览</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="panel">
+          <h3>第二行: JS预览、美化与提取</h3>
+          <form method="post" class="form-grid">
+            <input type="hidden" name="domain" value="{{ module3_form.domain }}">
+            <input type="hidden" name="js_file" value="{{ module3_form.js_file }}">
+
+            <label>或粘贴JS URL(优先于项目内JS)</label>
+            <input name="js_url" value="{{ module3_form.js_url }}" placeholder="https://target.example.com/assets/app.xxxxx.js">
+
+            <label>Regex</label>
+            <input name="pattern" value="{{ module3_form.pattern }}" placeholder="/base">
+
+            <div class="quick-actions">
+              <button type="submit" formaction="/actions/module3/preview" class="btn-secondary">预览提取效果</button>
+              <button type="submit" formaction="/actions/module3/extract" class="btn-secondary">开始批量提取全部JS</button>
+            </div>
+          </form>
+
+          {% if module3_js_beautify %}
+          <h4>JS美化输出</h4>
+          <div class="code-meta">
+            <span>source: {{ module3_js_beautify.source }}</span>
+            <span>raw_chars: {{ module3_js_beautify.raw_chars }}</span>
+            <span>beautified_chars: {{ module3_js_beautify.beautified_chars }}</span>
+            {% if module3_js_beautify.truncated %}
+            <span class="code-truncated">已截断显示</span>
+            {% endif %}
+          </div>
+          <pre class="code-block"><code id="module3JsCode">{{ module3_js_beautify.code }}</code></pre>
+          {% endif %}
+
+          {% if module3_preview %}
+          <h4>单文件提取预览结果</h4>
+          <div class="code-meta">
+            <span>source: {{ module3_preview.source }}</span>
+            <span>count: {{ module3_preview.count }}</span>
+          </div>
+          {% if module3_preview.endpoints %}
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Method</th>
+                  <th>Path</th>
+                  <th>URL</th>
+                  <th>Source Line</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in module3_preview.endpoints %}
+                <tr>
+                  <td>{{ item.id }}</td>
+                  <td>{{ item.method }}</td>
+                  <td class="mono">{{ item.path }}</td>
+                  <td class="mono">{{ item.url }}</td>
+                  <td>{{ item.source_line }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="task-empty">当前文件未提取到接口</div>
+          {% endif %}
+          {% endif %}
+
+          {% if module3_extract_result %}
+          <h4>批量提取结果</h4>
+          <pre>{{ module3_extract_result | tojson(indent=2) }}</pre>
+          {% endif %}
+        </div>
+      </section>
+
+      <section class="module {% if active_module != 4 %}hidden{% endif %}">
+        <div class="panel">
+          <h3>API Request</h3>
+          <form method="post" action="/actions/module4/load" class="form-grid">
+            <label>Project Domain</label>
+            <select name="domain">
+              <option value="">-- Select --</option>
+              {% for p in projects %}
+              <option value="{{ p }}" {% if module4_form.domain == p %}selected{% endif %}>{{ p }}</option>
+              {% endfor %}
+            </select>
+            <input type="hidden" name="api_id" value="{{ module4_form.api_id }}">
+            <input type="hidden" name="method" value="{{ module4_form.method }}">
+            <input type="hidden" name="baseurl" value="{{ module4_form.baseurl }}">
+            <input type="hidden" name="baseapi" value="{{ module4_form.baseapi }}">
+            <input type="hidden" name="timeout" value="{{ module4_form.timeout }}">
+            <input type="hidden" name="json_body" value="{{ module4_form.json_body }}">
+            <input type="hidden" name="headers" value="{{ module4_form.headers }}">
+            <button type="submit">加载API列表</button>
+          </form>
+
+          <form method="post" action="/actions/module4/request" class="form-grid">
+            <label>Domain</label>
+            <input name="domain" value="{{ module4_form.domain }}">
+
+            <label>Base URL</label>
+            <input name="baseurl" value="{{ module4_form.baseurl }}" placeholder="https://target.example.com">
+
+            <label>Base API</label>
+            <input name="baseapi" value="{{ module4_form.baseapi }}" placeholder="/api/v1">
+
+            <label>API</label>
+            <select name="api_id">
+              <option value="">-- Select API --</option>
+              {% for api in module4_endpoints %}
+              <option value="{{ api.id }}" {% if module4_form.api_id == (api.id | string) %}selected{% endif %}>{{ api.id }} | {{ api.method }} | {{ api.path }}</option>
+              {% endfor %}
+            </select>
+
+            <div class="triple">
+              <div>
+                <label>Method Override</label>
+                <input name="method" value="{{ module4_form.method }}">
+              </div>
+              <div>
+                <label>Timeout(s)</label>
+                <input name="timeout" value="{{ module4_form.timeout }}">
+              </div>
+              <div></div>
+            </div>
+
+            <label>JSON Body</label>
+            <textarea name="json_body" rows="6">{{ module4_form.json_body }}</textarea>
+            <label>Headers JSON</label>
+            <textarea name="headers" rows="6">{{ module4_form.headers }}</textarea>
+            <button type="submit">发送请求</button>
+          </form>
+        </div>
+
+        {% if module4_request_result %}
+        <div class="panel">
+          <h3>请求结果</h3>
+          <pre>{{ module4_request_result | tojson(indent=2) }}</pre>
+        </div>
+        {% endif %}
+      </section>
+
+    </main>
+  </div>
+  <script>
+    (function () {
+      const activeModule = Number("{{ active_module }}");
+      const hasRunningDetectTask = {{ "true" if module1_has_running_tasks else "false" }};
+      const hasRunningModule2Jobs = {{ "true" if module2_has_running_jobs else "false" }};
+      const allDialogs = document.querySelectorAll("dialog.modal-dialog");
+
+      function bindDialog(dialog) {
+        if (!dialog || typeof dialog.showModal !== "function") {
+          return;
+        }
+        dialog.querySelectorAll("[data-close-dialog]").forEach(function (button) {
+          button.addEventListener("click", function () {
+            dialog.close();
+          });
+        });
+        dialog.addEventListener("click", function (event) {
+          const rect = dialog.getBoundingClientRect();
+          const inside =
+            event.clientX >= rect.left &&
+            event.clientX <= rect.right &&
+            event.clientY >= rect.top &&
+            event.clientY <= rect.bottom;
+          if (!inside) {
+            dialog.close();
+          }
+        });
+      }
+
+      allDialogs.forEach(function (dialog) {
+        bindDialog(dialog);
+      });
+
+      document.querySelectorAll("[data-open-dialog]").forEach(function (button) {
+        const dialogId = button.getAttribute("data-open-dialog");
+        if (!dialogId) {
+          return;
+        }
+        const dialog = document.getElementById(dialogId);
+        if (!dialog || typeof dialog.showModal !== "function") {
+          return;
+        }
+        button.addEventListener("click", function () {
+          dialog.showModal();
+        });
+      });
+
+      function escapeHtml(value) {
+        return String(value || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function highlightJavaScript(source) {
+        let text = String(source || "");
+        const buckets = [];
+
+        function keep(regex, cls) {
+          text = text.replace(regex, function (match) {
+            const token = "___TOK_" + buckets.length + "___";
+            buckets.push('<span class="' + cls + '">' + escapeHtml(match) + "</span>");
+            return token;
+          });
+        }
+
+        keep(/\/\*[\s\S]*?\*\//g, "tok-comment");
+        keep(/\/\/[^\n\r]*/g, "tok-comment");
+        keep(/`(?:\\[\s\S]|[^`])*`/g, "tok-string");
+        keep(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g, "tok-string");
+
+        text = escapeHtml(text);
+        text = text.replace(/\b(?:0x[0-9a-fA-F]+|\d+(?:\.\d+)?)\b/g, '<span class="tok-number">$&</span>');
+        text = text.replace(/\b(?:true|false|null|undefined|NaN|Infinity)\b/g, '<span class="tok-literal">$&</span>');
+        text = text.replace(
+          /\b(?:await|break|case|catch|class|const|continue|debugger|default|delete|do|else|enum|export|extends|finally|for|function|if|import|in|instanceof|let|new|return|super|switch|this|throw|try|typeof|var|void|while|with|yield|async)\b/g,
+          '<span class="tok-keyword">$&</span>'
+        );
+        text = text.replace(/___TOK_(\d+)___/g, function (_, idx) {
+          const hit = buckets[Number(idx)];
+          return hit || _;
+        });
+        return text;
+      }
+
+      function initModule3CodePreview() {
+        const codeEl = document.getElementById("module3JsCode");
+        if (!codeEl) {
+          return;
+        }
+        const rawCode = codeEl.textContent || "";
+        if (!rawCode.trim()) {
+          return;
+        }
+        codeEl.innerHTML = highlightJavaScript(rawCode);
+      }
+
+      if (activeModule === 3) {
+        initModule3CodePreview();
+      }
+
+      if ((activeModule === 1 && hasRunningDetectTask) || (activeModule === 2 && hasRunningModule2Jobs)) {
+        window.setInterval(function () {
+          if (document.querySelector("dialog.modal-dialog[open]")) {
+            return;
+          }
+          if (document.hidden) {
+            return;
+          }
+          window.location.reload();
+        }, 3000);
+      }
+    })();
+  </script>
+</body>
+</html>

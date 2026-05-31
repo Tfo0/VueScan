@@ -1,0 +1,6 @@
+starlette
+uvicorn
+playwright
+python-multipart
+jsbeautifier
+jinja2
