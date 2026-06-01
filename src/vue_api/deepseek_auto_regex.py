@@ -71,10 +71,16 @@ def _normalize_ai_patterns(raw: Any) -> list[str]:
             compiled = re.compile(token, re.MULTILINE)
         except re.error:
             continue
-        # 这里要求 AI 生成的正则至少带一个捕获组，方便沿用当前提取链路。
+        # 要求至少有一个捕获组；如果 LLM 忘记加括号，自动补一层。
         if int(getattr(compiled, "groups", 0) or 0) <= 0:
-            continue
-        result.append(token)
+            wrapped = f"({token})"
+            try:
+                re.compile(wrapped, re.MULTILINE)
+                token = wrapped
+            except re.error:
+                continue
+        if token not in result:
+            result.append(token)
         if len(result) >= 6:
             break
     return result
@@ -112,7 +118,7 @@ def generate_deepseek_auto_regex_candidates(
     body = {
         "model": model,
         "temperature": 0.2,
-        "max_tokens": 900,
+        "max_tokens": 2000,
         "response_format": {"type": "json_object"},
         "messages": [
             {
@@ -193,11 +199,18 @@ def generate_deepseek_auto_regex_candidates(
     if selected_pattern and selected_pattern not in patterns:
         merged = _normalize_ai_patterns([selected_pattern, *patterns])
         patterns = merged or patterns
+
+    # 兜底：如果结构化解析拿不到任何正则，尝试直接从原始文本提取引号包裹的候选
+    if not patterns:
+        raw_text = str(content or "")
+        fallback_candidates = re.findall(r'"([^"]{10,})"', raw_text)
+        patterns = _normalize_ai_patterns(fallback_candidates[:6])
     result["patterns"] = patterns
     result["selected_pattern"] = selected_pattern if selected_pattern in patterns else (patterns[0] if patterns else "")
     result["used"] = bool(patterns)
     if not patterns and not result["error"]:
-        result["error"] = "DeepSeek returned no valid regex candidates"
+        raw_content = str(content or "").strip()[:200]
+        result["error"] = f"LLM 未返回有效正则（无捕获组或格式错误）。模型原始输出片段：{raw_content or '(empty)'}"
     return result
 
 

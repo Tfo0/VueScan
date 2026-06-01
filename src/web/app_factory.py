@@ -11,6 +11,7 @@ from src.services import (
     create_job,
     load_api_endpoints,
     read_job,
+    reset_stale_jobs_on_startup,
     run_api_extract,
     run_api_request,
     run_chunk_download,
@@ -369,6 +370,16 @@ def _run_api_llm_analyze(
 RUN_API_LLM_ANALYZE = _run_api_llm_analyze
 
 
+def _run_and_save_llm_analyze(domain: str) -> dict:
+    result = _run_api_llm_analyze(
+        domain=domain,
+        settings=GET_GLOBAL_SETTINGS(),
+        param_keys=_module_load_param_keys(domain, database_file=BOOTSTRAP_CONFIG.sqlite_db_file),
+    )
+    _module_save_llm_analysis_result(domain, result)
+    return result
+
+
 def _run_llm_analyze_background(*, job_id: str, domain: str, paths: list[str] | None) -> None:
     try:
         append_log(job_id, "LLM 分析开始")
@@ -513,11 +524,7 @@ WEB_RUNTIME_BUNDLE = _build_web_runtime_bundle(
         ),
         persist_project_request_config=_module_persist_project_request_config,
         module2_sync_job_step=BOOTSTRAP_CONFIG.module2_sync_job_step,
-        run_auto_llm_analyze=lambda domain: _run_api_llm_analyze(
-            domain,
-            GET_GLOBAL_SETTINGS(),
-            param_keys=_module_load_param_keys(domain, database_file=BOOTSTRAP_CONFIG.sqlite_db_file),
-        ),
+        run_auto_llm_analyze=lambda domain: _run_and_save_llm_analyze(domain),
         extract_response_params=lambda domain: _module_extract_response_params(
             domain,
             database_file=BOOTSTRAP_CONFIG.sqlite_db_file,
@@ -717,9 +724,57 @@ APP_ROUTE_WIRING = _build_web_app_routes(
 
 routes = APP_ROUTE_WIRING.routes
 
+def _backfill_missing_llm_analysis() -> None:
+    """启动时对有接口但缺少 LLM 分析结果的项目自动补跑分析。"""
+    try:
+        from src.vue_api.project_store import load_project_extract_result as _load_extract
+        records = list_projects(limit=3000)
+        for rec in records:
+            domain = str(rec.get("domain") or "").strip()
+            if not domain:
+                continue
+            # 已有分析结果则跳过
+            existing = _module_load_llm_analysis_result(domain)
+            has_content = (
+                existing.get("business_analysis")
+                or existing.get("api_analysis")
+                or existing.get("web_analysis")
+            )
+            if has_content:
+                continue
+            # 检查是否有可用接口
+            try:
+                extract = _load_extract(domain)
+                endpoints = extract.get("endpoints") or []
+            except Exception:
+                continue
+            paths = [
+                str(ep.get("path") or ep.get("url") or "").strip()
+                for ep in endpoints
+                if isinstance(ep, dict)
+            ]
+            paths = [p for p in paths if p and p != 'url:"']
+            if not paths:
+                continue
+            # 后台补跑
+            try:
+                _start_llm_analyze_job(domain, None)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
+async def _on_startup() -> None:
+    reset_stale_jobs_on_startup()
+    import threading
+    threading.Thread(target=_backfill_missing_llm_analysis, daemon=True).start()
+
+
 app = Starlette(
     debug=False,
     routes=routes,
+    on_startup=[_on_startup],
     middleware=[
         Middleware(
             _ApiAuthMiddleware,

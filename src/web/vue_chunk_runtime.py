@@ -21,6 +21,7 @@ def queue_module2_project_sync_service(
     auto_scan_pattern: str = "",
     task_id: str | None = None,
     auto_pipeline: bool = False,
+    auto_llm: bool = False,
     project_title: str = "",
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     # 这里只做 Web UI 状态回写，真正的排队逻辑已经在 src/vue_chunk/job_queue.py。
@@ -35,6 +36,7 @@ def queue_module2_project_sync_service(
         auto_scan_pattern=auto_scan_pattern,
         task_id=task_id,
         auto_pipeline=auto_pipeline,
+        auto_llm=auto_llm,
         project_title=project_title,
     )
     selected_domain = safe_str(project.get("domain"))

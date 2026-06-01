@@ -116,8 +116,11 @@ def _save_project_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]
                 seed_urls_json,
                 task_ids_json,
                 created_at,
-                updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                updated_at,
+                route_count,
+                js_count,
+                pipeline_status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 (
@@ -128,6 +131,9 @@ def _save_project_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]
                     json.dumps(item["task_ids"], ensure_ascii=False),
                     item["created_at"],
                     item["updated_at"],
+                    item.get("route_count", -1),
+                    item.get("js_count", -1),
+                    item.get("pipeline_status", ""),
                 )
                 for item in normalized
             ],

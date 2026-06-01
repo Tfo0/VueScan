@@ -39,7 +39,7 @@ const formDetectRoutes = ref(true)
 const formDetectJs = ref(true)
 const formDetectRequest = ref(true)
 const formAutoPipeline = ref(true)
-const formAutoLlm = ref(false)
+const formAutoLlm = ref(true)
 const message = ref('')
 const error = ref('')
 let pollTimer: number | undefined
@@ -141,7 +141,7 @@ function resetCreateForm() {
   formDetectJs.value = true
   formDetectRequest.value = true
   formAutoPipeline.value = true
-  formAutoLlm.value = false
+  formAutoLlm.value = true
 }
 
 async function onCreateProject() {
@@ -531,11 +531,9 @@ onUnmounted(() => {
             <input v-model="formDetectRequest" type="checkbox" :disabled="formAutoPipeline" />
             <span>请求检测</span>
           </label>
-        </div>
-        <div v-if="formAutoPipeline" class="check-section">
-          <label class="check-line">
+          <label v-if="formAutoPipeline" class="check-line">
             <input v-model="formAutoLlm" type="checkbox" />
-            <span>LLM 分析（自动化完成后对提取结果进行 AI 安全分析）</span>
+            <span>LLM 分析</span>
           </label>
         </div>
         <div v-if="formAutoPipeline" class="chunk-note">

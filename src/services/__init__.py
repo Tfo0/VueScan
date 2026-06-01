@@ -1,4 +1,4 @@
-from .job_store import append_log, create_job, iter_job_payloads, list_jobs, read_job, update_job
+from .job_store import append_log, create_job, iter_job_payloads, list_jobs, read_job, reset_stale_jobs_on_startup, update_job
 from .workflow_service import (
     load_api_endpoints,
     run_api_extract,

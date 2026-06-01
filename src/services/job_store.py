@@ -395,11 +395,54 @@ def iter_job_payloads(limit: int = 30, *, step: str | None = None, with_logs: bo
         return records
 
 
+def reset_stale_jobs_on_startup() -> int:
+    """启动时将所有残留的 queued / running job 标为 failed。
+    这些 job 的后台线程在上次服务退出时已被杀掉，永远不会自行推进。
+    返回被重置的 job 数量。
+    """
+    stale_statuses = {"queued", "running"}
+    now = utc_now_iso()
+    count = 0
+    with _JOB_IO_LOCK:
+        ensure_job_store_schema()
+        with connect_job_store() as connection:
+            rows = connection.execute(
+                "SELECT job_id FROM jobs WHERE status IN ('queued', 'running')"
+            ).fetchall()
+            job_ids = [row["job_id"] for row in rows]
+            if job_ids:
+                connection.execute(
+                    f"UPDATE jobs SET status='failed', error_text='服务重启，任务已中断', "
+                    f"updated_at='{now}', finished_at='{now}' "
+                    f"WHERE status IN ('queued', 'running')"
+                )
+                connection.commit()
+                count = len(job_ids)
+
+        # 同步更新文件镜像
+        for job_id in job_ids:
+            try:
+                path = _job_path(job_id)
+                if path.exists():
+                    data = _read_job_file(path)
+                    if data.get("status") in stale_statuses:
+                        data["status"] = "failed"
+                        data["error"] = "服务重启，任务已中断"
+                        data["updated_at"] = now
+                        data["finished_at"] = now
+                        _mirror_job_file(data)
+            except Exception:
+                pass
+
+    return count
+
+
 __all__ = [
     "append_log",
     "create_job",
     "iter_job_payloads",
     "list_jobs",
     "read_job",
+    "reset_stale_jobs_on_startup",
     "update_job",
 ]
