@@ -329,7 +329,7 @@ def delete_request_run_snapshot(*, domain: str, snapshot_id: str) -> list[dict[s
 
         for index, item in enumerate(kept, start=1):
             item["run_index"] = index
-            item["title"] = f"绗?{index}娆?"
+            item["title"] = f"第{index}次"
         _save_snapshot_rows(token, kept)
 
         remaining_response_paths: set[str] = set()

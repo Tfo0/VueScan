@@ -243,7 +243,7 @@ async def _api_vue_chunk_project_create(request: Request, deps: VueChunkRouteDep
         deps.to_bool(payload.get("auto_pipeline") or payload.get("automation")) if has_auto_pipeline else True
     )
     scan_pattern = deps.resolve_scan_pattern(deps.safe_str(payload.get("pattern"))) if auto_pipeline else ""
-    auto_llm = deps.to_bool(payload.get("auto_llm")) if "auto_llm" in payload else False
+    auto_llm = deps.to_bool(payload.get("auto_llm")) if "auto_llm" in payload else auto_pipeline
 
     if not target_url:
         return deps.json_error("target_url is required", status_code=400)

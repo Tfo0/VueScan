@@ -164,7 +164,7 @@ async function onCreateProject() {
       detectJs: autoPipeline ? true : formDetectJs.value,
       detectRequest: autoPipeline ? true : formDetectRequest.value,
       autoPipeline,
-      autoLlm: autoPipeline ? Boolean(formAutoLlm.value) : false,
+      autoLlm: Boolean(formAutoLlm.value),
     })
     const createdDomain = String(created.project?.domain || '').trim()
     showCreateModal.value = false
@@ -531,8 +531,8 @@ onUnmounted(() => {
             <input v-model="formDetectRequest" type="checkbox" :disabled="formAutoPipeline" />
             <span>请求检测</span>
           </label>
-          <label v-if="formAutoPipeline" class="check-line">
-            <input v-model="formAutoLlm" type="checkbox" />
+          <label class="check-line">
+            <input v-model="formAutoLlm" type="checkbox" :disabled="formAutoPipeline" />
             <span>LLM 分析</span>
           </label>
         </div>
